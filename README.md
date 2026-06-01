@@ -43,7 +43,7 @@ If that fails, fix Grok before trying this extension.
 From this repo:
 
 ```bash
-pi install git:github.com/Howaboua/pi-grok-build
+pi install git:github.com/IgorWarzocha/pi-grok-build
 ```
 
 Then run:

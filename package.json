@@ -17,7 +17,7 @@
     "grok-build",
     "xai"
   ],
-  "author": "Howaboua",
+  "author": "Igor Warzocha",
   "license": "MIT",
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
