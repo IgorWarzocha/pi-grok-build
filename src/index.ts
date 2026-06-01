@@ -14,7 +14,17 @@ const CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
 const SCOPES = "openid profile email offline_access grok-cli:access api:access";
 const REDIRECT_URI = "http://127.0.0.1:56121/callback";
 const GROK_SCOPE = `${ISSUER}::${CLIENT_ID}`;
-const GROK_CLI_VERSION = "0.2.16";
+function readGrokCliVersion(): string {
+  try {
+    const versionPath = join(homedir(), ".grok", "version.json");
+    const data = JSON.parse(readFileSync(versionPath, "utf8"));
+    const version = String(data.version || "").trim();
+    if (version) return version;
+  } catch {}
+  return "0.2.16";
+}
+
+const GROK_CLI_VERSION = readGrokCliVersion();
 const BASE_URL = process.env.GROK_CLI_CHAT_PROXY_BASE_URL?.replace(/\/$/, "") || "https://cli-chat-proxy.grok.com/v1";
 
 const MODELS = [
@@ -31,6 +41,14 @@ function readGrokAuth(): { access: string; refresh?: string; expires?: number } 
   const refresh = String(entry?.refresh_token || "").trim() || undefined;
   const expiresAt = entry?.expires_at ? Date.parse(String(entry.expires_at)) : undefined;
   return { access, refresh, expires: Number.isFinite(expiresAt) ? expiresAt : Date.now() + 60 * 60 * 1000 };
+}
+
+function readGrokApiKeyForStartup(): string | undefined {
+  try {
+    return readGrokAuth().access;
+  } catch {
+    return undefined;
+  }
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -214,6 +232,7 @@ export default function (pi: ExtensionAPI) {
     name: "Grok Build (grok login)",
     baseUrl: BASE_URL,
     api: "openai-completions",
+    apiKey: readGrokApiKeyForStartup(),
     authHeader: true,
     headers: {
       "X-XAI-Token-Auth": "xai-grok-cli",
