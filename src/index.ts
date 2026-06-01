@@ -27,10 +27,53 @@ function readGrokCliVersion(): string {
 const GROK_CLI_VERSION = readGrokCliVersion();
 const BASE_URL = process.env.GROK_CLI_CHAT_PROXY_BASE_URL?.replace(/\/$/, "") || "https://cli-chat-proxy.grok.com/v1";
 
-const MODELS = [
-  { id: "grok-build", name: "Grok Build", reasoning: false, input: ["text"] as const, contextWindow: 512_000, maxTokens: 16_384, description: "Best for advanced coding tasks" },
-  { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"] as const, contextWindow: 200_000, maxTokens: 16_384, description: "Cursor's latest coding model" },
+type GrokModelConfig = {
+  id: string;
+  name: string;
+  reasoning: false;
+  input: ["text"];
+  contextWindow: number;
+  maxTokens: number;
+  description?: string;
+  baseUrl?: string;
+};
+
+const FALLBACK_MODELS: GrokModelConfig[] = [
+  { id: "grok-build", name: "Grok Build", reasoning: false, input: ["text"], contextWindow: 512_000, maxTokens: 16_384, description: "Best for advanced coding tasks" },
+  { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"], contextWindow: 200_000, maxTokens: 16_384, description: "Cursor's latest coding model" },
 ];
+
+function readGrokModels(): GrokModelConfig[] {
+  try {
+    const cachePath = join(homedir(), ".grok", "models_cache.json");
+    const data = JSON.parse(readFileSync(cachePath, "utf8"));
+    const models = data?.models;
+    if (!models || typeof models !== "object") return FALLBACK_MODELS;
+
+    const result = Object.entries(models).flatMap(([key, value]) => {
+      const info = (value as any)?.info ?? {};
+      if (info.hidden === true || info.supported_in_api === false) return [];
+      const id = String(info.model || key || "").trim();
+      if (!id) return [];
+      return [{
+        id,
+        name: String(info.name || id),
+        reasoning: false as const,
+        input: ["text"] as ["text"],
+        contextWindow: Number(info.context_window) || 128_000,
+        maxTokens: Number(info.max_completion_tokens) || 16_384,
+        description: typeof info.description === "string" ? info.description : undefined,
+        baseUrl: typeof info.base_url === "string" ? info.base_url.replace(/\/$/, "") : undefined,
+      }];
+    });
+
+    return result.length ? result : FALLBACK_MODELS;
+  } catch {
+    return FALLBACK_MODELS;
+  }
+}
+
+const MODELS = readGrokModels();
 
 function readGrokAuth(): { access: string; refresh?: string; expires?: number } {
   const authPath = join(homedir(), ".grok", "auth.json");
@@ -231,7 +274,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerProvider("grok-cli", {
     name: "Grok Build (grok login)",
     baseUrl: BASE_URL,
-    api: "openai-completions",
+    api: "openai-responses",
     apiKey: readGrokApiKeyForStartup(),
     authHeader: true,
     headers: {
@@ -242,7 +285,7 @@ export default function (pi: ExtensionAPI) {
       ...m,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       headers: { "x-grok-model-override": m.id },
-      compat: { supportsUsageInStreaming: false, supportsDeveloperRole: false, maxTokensField: "max_tokens" as const },
+      compat: { supportsReasoningEffort: false, supportsUsageInStreaming: true, supportsDeveloperRole: false },
     })),
     oauth: {
       name: "Grok Build (reuse ~/.grok/auth.json)",
