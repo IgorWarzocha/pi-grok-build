@@ -38,9 +38,9 @@ grok -p "say hi"
 
 If that fails, fix Grok before trying this extension.
 
-## Install from GitHub
+## Install
 
-Once this repo is pushed, install it with Pi:
+From this repo:
 
 ```bash
 pi install git:github.com/Howaboua/pi-grok-build
