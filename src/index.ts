@@ -1,5 +1,16 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
+import {
+  createAssistantMessageEventStream,
+  streamSimpleOpenAIResponses,
+  type AssistantMessage,
+  type AssistantMessageEvent,
+  type Context,
+  type Model,
+  type OAuthCredentials,
+  type OAuthLoginCallbacks,
+  type SimpleStreamOptions,
+  type ToolCall,
+} from "@earendil-works/pi-ai";
 import { createServer, type Server } from "node:http";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -74,6 +85,81 @@ function readGrokModels(): GrokModelConfig[] {
 }
 
 const MODELS = readGrokModels();
+
+function resolveToolName(name: string, context: Context): string {
+  const tools = context.tools ?? [];
+  const exact = tools.find((tool) => tool.name === name);
+  if (exact) return name;
+
+  const lowerName = name.toLowerCase();
+  const caseInsensitive = tools.find((tool) => tool.name.toLowerCase() === lowerName);
+  if (caseInsensitive) return caseInsensitive.name;
+
+  if (lowerName === "shell" && tools.some((tool) => tool.name === "bash")) return "bash";
+
+  return name;
+}
+
+function normalizeToolCall(toolCall: ToolCall, context: Context): ToolCall {
+  const normalized = resolveToolName(toolCall.name, context);
+  return normalized === toolCall.name ? toolCall : { ...toolCall, name: normalized };
+}
+
+function normalizeAssistantMessage(message: AssistantMessage, context: Context): AssistantMessage {
+  let changed = false;
+  const content = message.content.map((part) => {
+    if (part.type !== "toolCall") return part;
+    const normalized = normalizeToolCall(part, context);
+    if (normalized !== part) changed = true;
+    return normalized;
+  });
+  return changed ? { ...message, content } : message;
+}
+
+function normalizeAssistantEvent(event: AssistantMessageEvent, context: Context): AssistantMessageEvent {
+  if (event.type === "toolcall_end") {
+    return {
+      ...event,
+      toolCall: normalizeToolCall(event.toolCall, context),
+      partial: normalizeAssistantMessage(event.partial, context),
+    };
+  }
+  if (event.type === "done") return { ...event, message: normalizeAssistantMessage(event.message, context) };
+  if (event.type === "error") return { ...event, error: normalizeAssistantMessage(event.error, context) };
+  if ("partial" in event) return { ...event, partial: normalizeAssistantMessage(event.partial, context) };
+  return event;
+}
+
+function streamSimpleGrok(model: Model<"openai-responses">, context: Context, options?: SimpleStreamOptions) {
+  const upstream = streamSimpleOpenAIResponses(model, context, options);
+  const stream = createAssistantMessageEventStream();
+
+  void (async () => {
+    for await (const event of upstream) {
+      stream.push(normalizeAssistantEvent(event, context));
+    }
+  })().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const now = Date.now();
+    stream.push({
+      type: "error",
+      reason: "error",
+      error: {
+        role: "assistant",
+        content: [{ type: "text", text: message }],
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "error",
+        errorMessage: message,
+        timestamp: now,
+      },
+    });
+  });
+
+  return stream;
+}
 
 function readGrokAuth(): { access: string; refresh?: string; expires?: number } {
   const authPath = join(homedir(), ".grok", "auth.json");
@@ -275,6 +361,7 @@ export default function (pi: ExtensionAPI) {
     name: "Grok Build (grok login)",
     baseUrl: BASE_URL,
     api: "openai-responses",
+    streamSimple: streamSimpleGrok,
     apiKey: readGrokApiKeyForStartup(),
     authHeader: true,
     headers: {
