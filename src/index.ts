@@ -1,4 +1,11 @@
-import { createFindTool, createGrepTool, createLsTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  createEditTool,
+  createFindTool,
+  createGrepTool,
+  createLsTool,
+  createWriteTool,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import {
   createAssistantMessageEventStream,
   streamSimpleOpenAIResponses,
@@ -88,9 +95,11 @@ const MODELS = readGrokModels();
 
 function createDiscoveryTools(cwd: string) {
   return {
+    edit: createEditTool(cwd),
     find: createFindTool(cwd),
     grep: createGrepTool(cwd),
     ls: createLsTool(cwd),
+    write: createWriteTool(cwd),
   };
 }
 
@@ -111,17 +120,54 @@ function resolveToolName(name: string, context: Context): string {
   if (exact) return name;
 
   const lowerName = name.toLowerCase();
+  const aliases: Record<string, string> = {
+    shell: "bash",
+    strreplace: "edit",
+  };
+  const aliased = aliases[lowerName];
+  if (aliased && tools.some((tool) => tool.name === aliased)) return aliased;
+
   const caseInsensitive = tools.find((tool) => tool.name.toLowerCase() === lowerName);
   if (caseInsensitive) return caseInsensitive.name;
-
-  if (lowerName === "shell" && tools.some((tool) => tool.name === "bash")) return "bash";
 
   return name;
 }
 
+function objectArgs(args: Record<string, any>): Record<string, any> {
+  return args && typeof args === "object" && !Array.isArray(args) ? args : {};
+}
+
+function normalizeToolArguments(name: string, args: Record<string, any>): Record<string, any> {
+  const input = objectArgs(args);
+  if (name === "glob" || name === "find") {
+    return {
+      ...input,
+      pattern: input.pattern ?? input.glob_pattern ?? input.glob,
+      path: input.path ?? input.target_directory,
+    };
+  }
+  if (name === "write") {
+    return {
+      ...input,
+      content: input.content ?? input.contents,
+    };
+  }
+  if (name === "edit") {
+    if (Array.isArray(input.edits)) return input;
+    return {
+      path: input.path,
+      edits: [{ oldText: input.oldText ?? input.old_string, newText: input.newText ?? input.new_string }],
+    };
+  }
+  return input;
+}
+
 function normalizeToolCall(toolCall: ToolCall, context: Context): ToolCall {
   const normalized = resolveToolName(toolCall.name, context);
-  return normalized === toolCall.name ? toolCall : { ...toolCall, name: normalized };
+  const normalizedArguments = normalizeToolArguments(normalized, toolCall.arguments);
+  return normalized === toolCall.name && normalizedArguments === toolCall.arguments
+    ? toolCall
+    : { ...toolCall, name: normalized, arguments: normalizedArguments };
 }
 
 function normalizeAssistantMessage(message: AssistantMessage, context: Context): AssistantMessage {
