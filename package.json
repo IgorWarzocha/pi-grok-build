@@ -27,5 +27,8 @@
     "extensions": [
       "src/index.ts"
     ]
+  },
+  "scripts": {
+    "check": "bun --check src/*.ts"
   }
 }
