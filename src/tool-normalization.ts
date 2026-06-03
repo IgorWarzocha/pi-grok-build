@@ -10,6 +10,9 @@ import {
 } from "@earendil-works/pi-ai";
 
 const TOOL_ALIASES: Record<string, string> = {
+  read_file: "read",
+  run_terminal_cmd: "bash",
+  search_replace: "edit",
   shell: "bash",
   strreplace: "edit",
 };
@@ -45,13 +48,20 @@ function normalizeToolArguments(name: string, args: Record<string, any>): Record
   if (name === "write") {
     return {
       ...input,
+      path: input.path ?? input.file_path,
       content: input.content ?? input.contents,
+    };
+  }
+  if (name === "read") {
+    return {
+      ...input,
+      path: input.path ?? input.target_file ?? input.file_path,
     };
   }
   if (name === "edit") {
     if (Array.isArray(input.edits)) return input;
     return {
-      path: input.path,
+      path: input.path ?? input.file_path,
       edits: [{ oldText: input.oldText ?? input.old_string, newText: input.newText ?? input.new_string }],
     };
   }
