@@ -1,7 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readGrokCliVersion, readGrokModels } from "./models.ts";
 import { login, readGrokApiKeyForStartup, refreshToken } from "./oauth.ts";
-import { registerCursorStyleTools } from "./toolkit.ts";
 import { streamSimpleGrok } from "./tool-normalization.ts";
 
 const GROK_CLI_VERSION = readGrokCliVersion();
@@ -9,8 +8,6 @@ const BASE_URL = process.env.GROK_CLI_CHAT_PROXY_BASE_URL?.replace(/\/$/, "") ||
 const MODELS = readGrokModels();
 
 export default function (pi: ExtensionAPI) {
-  registerCursorStyleTools(pi);
-
   pi.registerProvider("grok-cli", {
     name: "Grok Build (grok login)",
     baseUrl: BASE_URL,

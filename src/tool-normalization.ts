@@ -10,6 +10,7 @@ import {
 } from "@earendil-works/pi-ai";
 
 const TOOL_ALIASES: Record<string, string> = {
+  glob: "find",
   read_file: "read",
   run_terminal_cmd: "bash",
   search_replace: "edit",
