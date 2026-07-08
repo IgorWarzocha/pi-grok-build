@@ -1,7 +1,7 @@
 {
   "name": "pi-grok-build",
   "version": "0.1.0",
-  "description": "Pi extension for using Grok Build through an existing grok login session.",
+  "description": "Pi extension for using Grok through an existing grok login session.",
   "type": "module",
   "main": "src/index.ts",
   "exports": "./src/index.ts",
@@ -15,6 +15,7 @@
     "pi-coding-agent",
     "grok",
     "grok-build",
+    "grok-4.5",
     "xai"
   ],
   "author": "Igor Warzocha",

@@ -14,7 +14,7 @@ export type GrokModelConfig = {
 };
 
 export const FALLBACK_MODELS: GrokModelConfig[] = [
-  { id: "grok-build", name: "Grok Build", reasoning: false, input: ["text"], contextWindow: 512_000, maxTokens: 16_384, description: "Best for advanced coding tasks" },
+  { id: "grok-4.5", name: "Grok 4.5", reasoning: false, input: ["text"], contextWindow: 500_000, maxTokens: 16_384, description: "Current Grok CLI model" },
   { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"], contextWindow: 200_000, maxTokens: 16_384, description: "Cursor's latest coding model" },
 ];
 
@@ -25,7 +25,7 @@ export function readGrokCliVersion(): string {
     const version = String(data.version || "").trim();
     if (version) return version;
   } catch {}
-  return "0.2.16";
+  return "0.2.91";
 }
 
 export function readGrokModels(): GrokModelConfig[] {

@@ -9,7 +9,7 @@ const MODELS = readGrokModels();
 
 export default function (pi: ExtensionAPI) {
   pi.registerProvider("grok-cli", {
-    name: "Grok Build (grok login)",
+    name: "Grok CLI (grok login)",
     baseUrl: BASE_URL,
     api: "openai-responses",
     streamSimple: streamSimpleGrok,
@@ -26,7 +26,7 @@ export default function (pi: ExtensionAPI) {
       compat: { supportsReasoningEffort: false, supportsUsageInStreaming: true, supportsDeveloperRole: false },
     })),
     oauth: {
-      name: "Grok Build (reuse ~/.grok/auth.json)",
+      name: "Grok CLI (reuse ~/.grok/auth.json)",
       login,
       refreshToken,
       getApiKey: (credentials) => credentials.access,

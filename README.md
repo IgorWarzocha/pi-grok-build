@@ -1,6 +1,6 @@
 # pi-grok-build
 
-Use Grok Build in Pi with the login you already have from the official `grok` CLI.
+Use Grok in Pi with the login you already have from the official `grok` CLI.
 
 No xAI API key. No separate console billing. If `grok` works in your terminal, this extension lets Pi use the same session.
 
@@ -22,7 +22,7 @@ https://cli-chat-proxy.grok.com/v1
 
 ## Requirements
 
-Install Pi and Grok Build first.
+Install Pi and Grok CLI first.
 
 Then log in with Grok:
 
@@ -49,13 +49,13 @@ pi install git:github.com/IgorWarzocha/pi-grok-build
 Then run:
 
 ```bash
-pi --provider grok-cli --model grok-build
+pi --provider grok-cli --model grok-4.5
 ```
 
 ## Run from a local checkout
 
 ```bash
-pi -e /home/igorw/Work/pi-grok/src/index.ts --provider grok-cli --model grok-build
+pi -e /home/igorw/Work/pi-grok/src/index.ts --provider grok-cli --model grok-4.5
 ```
 
 Or use Composer:
@@ -68,7 +68,7 @@ pi -e /home/igorw/Work/pi-grok/src/index.ts --provider grok-cli --model grok-com
 
 | Model | Notes |
 | --- | --- |
-| `grok-build` | Grok Build coding model. Larger context. |
+| `grok-4.5` | Current Grok CLI model. Large context. |
 | `grok-composer-2.5-fast` | Fast Composer model. |
 
 These come from Grok's local model cache, not from `api.x.ai`.
@@ -89,7 +89,7 @@ The proxy needs a few Grok-specific headers:
 
 ```txt
 X-XAI-Token-Auth: xai-grok-cli
-x-grok-client-version: 0.2.16
+x-grok-client-version: <your local grok CLI version>
 x-grok-model-override: <model>
 ```
 
@@ -113,14 +113,14 @@ Update Grok:
 grok update
 ```
 
-If Grok updates past `0.2.16` and the proxy starts rejecting requests, update `GROK_CLI_VERSION` in `src/index.ts`.
+The extension reads the client version from `~/.grok/version.json` and falls back to `0.2.91` if that file is missing.
 
 ### Pi cannot find the provider
 
 Make sure the extension is installed, or pass it explicitly:
 
 ```bash
-pi -e /absolute/path/to/pi-grok-build/src/index.ts --provider grok-cli --model grok-build
+pi -e /absolute/path/to/pi-grok-build/src/index.ts --provider grok-cli --model grok-4.5
 ```
 
 ## Notes
