@@ -177,9 +177,13 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
 }
 
 export async function refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
+  let refreshToken = credentials.refresh;
   try {
     const existing = readGrokAuth();
-    return { access: existing.access, refresh: existing.refresh || credentials.refresh, expires: existing.expires };
+    if ((existing.expires || 0) > Date.now() + 60_000) {
+      return { access: existing.access, refresh: existing.refresh || credentials.refresh, expires: existing.expires };
+    }
+    refreshToken = existing.refresh || refreshToken;
   } catch {
     // Fall through to direct OAuth refresh.
   }
@@ -188,7 +192,7 @@ export async function refreshToken(credentials: OAuthCredentials): Promise<OAuth
   const payload = await exchange(endpoints.token_endpoint, {
     grant_type: "refresh_token",
     client_id: CLIENT_ID,
-    refresh_token: credentials.refresh,
+    refresh_token: refreshToken,
   });
   return {
     access: String(payload.access_token),

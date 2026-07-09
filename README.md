@@ -115,6 +115,10 @@ grok update
 
 The extension reads the client version from `~/.grok/version.json` and falls back to `0.2.91` if that file is missing.
 
+### Grok starts returning 401 after running for a while
+
+The extension refreshes expired Grok credentials automatically. If refresh fails because the CLI session itself is no longer valid, run `grok login` again.
+
 ### Pi cannot find the provider
 
 Make sure the extension is installed, or pass it explicitly:
