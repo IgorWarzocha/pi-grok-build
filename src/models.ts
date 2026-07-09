@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { ThinkingLevelMap } from "@earendil-works/pi-ai";
 
 export type GrokModelConfig = {
   id: string;
   name: string;
-  reasoning: false;
+  reasoning: boolean;
+  thinkingLevelMap?: ThinkingLevelMap;
   input: ["text"];
   contextWindow: number;
   maxTokens: number;
@@ -14,9 +16,26 @@ export type GrokModelConfig = {
 };
 
 export const FALLBACK_MODELS: GrokModelConfig[] = [
-  { id: "grok-4.5", name: "Grok 4.5", reasoning: false, input: ["text"], contextWindow: 500_000, maxTokens: 16_384, description: "Current Grok CLI model" },
+  { id: "grok-4.5", name: "Grok 4.5", reasoning: true, thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: null }, input: ["text"], contextWindow: 500_000, maxTokens: 16_384, description: "Current Grok CLI model" },
   { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"], contextWindow: 200_000, maxTokens: 16_384, description: "Cursor's latest coding model" },
 ];
+
+function readThinkingLevelMap(info: Record<string, any>): ThinkingLevelMap | undefined {
+  if (info.supports_reasoning_effort !== true) return undefined;
+
+  const efforts = Array.isArray(info.reasoning_efforts) ? info.reasoning_efforts : [];
+  const values = new Set(efforts.map((effort) => String(effort?.value || effort?.id || "").trim()).filter(Boolean));
+  if (values.size === 0 && typeof info.reasoning_effort === "string") values.add(info.reasoning_effort);
+
+  return {
+    off: null,
+    minimal: null,
+    low: values.has("low") ? "low" : null,
+    medium: values.has("medium") ? "medium" : null,
+    high: values.has("high") ? "high" : null,
+    xhigh: null,
+  };
+}
 
 export function readGrokCliVersion(): string {
   try {
@@ -40,10 +59,12 @@ export function readGrokModels(): GrokModelConfig[] {
       if (info.hidden === true || info.supported_in_api === false) return [];
       const id = String(info.model || key || "").trim();
       if (!id) return [];
+      const thinkingLevelMap = readThinkingLevelMap(info);
       return [{
         id,
         name: String(info.name || id),
-        reasoning: false as const,
+        reasoning: Boolean(thinkingLevelMap),
+        ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
         input: ["text"] as ["text"],
         contextWindow: Number(info.context_window) || 128_000,
         maxTokens: Number(info.max_completion_tokens) || 16_384,

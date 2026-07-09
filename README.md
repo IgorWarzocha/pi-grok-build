@@ -68,7 +68,7 @@ pi -e /home/igorw/Work/pi-grok/src/index.ts --provider grok-cli --model grok-com
 
 | Model | Notes |
 | --- | --- |
-| `grok-4.5` | Current Grok CLI model. Large context. |
+| `grok-4.5` | Current Grok CLI model. Large context. Supports `low`, `medium`, and `high` thinking. |
 | `grok-composer-2.5-fast` | Fast Composer model. |
 
 These come from Grok's local model cache, not from `api.x.ai`.
