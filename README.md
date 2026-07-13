@@ -68,8 +68,8 @@ pi -e /home/igorw/Work/pi-grok/src/index.ts --provider grok-cli --model grok-com
 
 | Model | Notes |
 | --- | --- |
-| `grok-4.5` | Current multimodal Grok CLI model. Large context. Supports image input and `low`, `medium`, and `high` thinking. |
-| `grok-composer-2.5-fast` | Fast Composer model. |
+| `grok-4.5` | Current multimodal Grok CLI model. Large context, no client-imposed output cap. Supports image input and `low`, `medium`, and `high` thinking. |
+| `grok-composer-2.5-fast` | Fast Composer model with no client-imposed output cap. |
 
 These come from Grok's local model cache, not from `api.x.ai`.
 

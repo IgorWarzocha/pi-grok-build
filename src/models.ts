@@ -16,8 +16,8 @@ export type GrokModelConfig = {
 };
 
 export const FALLBACK_MODELS: GrokModelConfig[] = [
-  { id: "grok-4.5", name: "Grok 4.5", reasoning: true, thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: null }, input: ["text", "image"], contextWindow: 500_000, maxTokens: 16_384, description: "Current Grok CLI model" },
-  { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"], contextWindow: 200_000, maxTokens: 16_384, description: "Cursor's latest coding model" },
+  { id: "grok-4.5", name: "Grok 4.5", reasoning: true, thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: null }, input: ["text", "image"], contextWindow: 500_000, maxTokens: 0, description: "Current Grok CLI model" },
+  { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"], contextWindow: 200_000, maxTokens: 0, description: "Cursor's latest coding model" },
 ];
 
 function readThinkingLevelMap(info: Record<string, any>): ThinkingLevelMap | undefined {
@@ -67,7 +67,8 @@ export function readGrokModels(): GrokModelConfig[] {
         ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
         input: (id === "grok-4.5" ? ["text", "image"] : ["text"]) as GrokModelConfig["input"],
         contextWindow: Number(info.context_window) || 128_000,
-        maxTokens: Number(info.max_completion_tokens) || 16_384,
+        // Grok uses null when the client should not impose an output limit.
+        maxTokens: Number(info.max_completion_tokens) > 0 ? Number(info.max_completion_tokens) : 0,
         description: typeof info.description === "string" ? info.description : undefined,
         baseUrl: typeof info.base_url === "string" ? info.base_url.replace(/\/$/, "") : undefined,
       }];
