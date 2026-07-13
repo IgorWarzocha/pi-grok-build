@@ -1,18 +1,19 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readGrokCliVersion, readGrokModels } from "./models.ts";
 import { login, readGrokApiKeyForStartup, refreshToken } from "./oauth.ts";
-import { streamSimpleGrok } from "./tool-normalization.ts";
+import { normalizeGrokAssistantEvent, normalizeGrokAssistantMessage } from "./tool-normalization.ts";
 
 const GROK_CLI_VERSION = readGrokCliVersion();
 const BASE_URL = process.env.GROK_CLI_CHAT_PROXY_BASE_URL?.replace(/\/$/, "") || "https://cli-chat-proxy.grok.com/v1";
 const MODELS = readGrokModels();
 
 export default function (pi: ExtensionAPI) {
+  let turnTools: string[] = [];
+
   pi.registerProvider("grok-cli", {
     name: "Grok CLI (grok login)",
     baseUrl: BASE_URL,
     api: "openai-responses",
-    streamSimple: streamSimpleGrok,
     apiKey: readGrokApiKeyForStartup(),
     authHeader: true,
     headers: {
@@ -31,5 +32,33 @@ export default function (pi: ExtensionAPI) {
       refreshToken,
       getApiKey: (credentials) => credentials.access,
     },
+  });
+
+  pi.on("turn_start", () => {
+    // Keep alias resolution tied to the tool set sent with this request.
+    turnTools = pi.getActiveTools();
+  });
+
+  pi.on("message_update", (event) => {
+    const message = event.message;
+    if (message.role !== "assistant" || message.provider !== "grok-cli") return;
+
+    const normalized = normalizeGrokAssistantMessage(message, turnTools);
+    // Streaming events are notification-only, so update the event in place for
+    // the TUI/RPC listeners that run after extensions.
+    if (normalized !== message) message.content = normalized.content;
+
+    const normalizedEvent = normalizeGrokAssistantEvent(event.assistantMessageEvent, turnTools);
+    if (normalizedEvent !== event.assistantMessageEvent) {
+      Object.assign(event.assistantMessageEvent, normalizedEvent);
+    }
+  });
+
+  pi.on("message_end", (event) => {
+    const message = event.message;
+    if (message.role !== "assistant" || message.provider !== "grok-cli") return;
+
+    const normalized = normalizeGrokAssistantMessage(message, turnTools);
+    if (normalized !== message) return { message: normalized };
   });
 }

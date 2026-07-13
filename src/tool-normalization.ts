@@ -1,11 +1,6 @@
 import {
-  createAssistantMessageEventStream,
-  streamSimpleOpenAIResponses,
   type AssistantMessage,
   type AssistantMessageEvent,
-  type Context,
-  type Model,
-  type SimpleStreamOptions,
   type ToolCall,
 } from "@earendil-works/pi-ai";
 
@@ -18,17 +13,15 @@ const TOOL_ALIASES: Record<string, string> = {
   strreplace: "edit",
 };
 
-function resolveToolName(name: string, context: Context): string {
-  const tools = context.tools ?? [];
-  const exact = tools.find((tool) => tool.name === name);
-  if (exact) return name;
+function resolveToolName(name: string, availableTools: readonly string[]): string {
+  if (availableTools.includes(name)) return name;
 
   const lowerName = name.toLowerCase();
   const aliased = TOOL_ALIASES[lowerName];
-  if (aliased && tools.some((tool) => tool.name === aliased)) return aliased;
+  if (aliased && availableTools.includes(aliased)) return aliased;
 
-  const caseInsensitive = tools.find((tool) => tool.name.toLowerCase() === lowerName);
-  if (caseInsensitive) return caseInsensitive.name;
+  const caseInsensitive = availableTools.find((tool) => tool.toLowerCase() === lowerName);
+  if (caseInsensitive) return caseInsensitive;
 
   return name;
 }
@@ -69,65 +62,47 @@ function normalizeToolArguments(name: string, args: Record<string, any>): Record
   return input;
 }
 
-function normalizeToolCall(toolCall: ToolCall, context: Context): ToolCall {
-  const normalized = resolveToolName(toolCall.name, context);
+function normalizeToolCall(toolCall: ToolCall, availableTools: readonly string[]): ToolCall {
+  const normalized = resolveToolName(toolCall.name, availableTools);
   const normalizedArguments = normalizeToolArguments(normalized, toolCall.arguments);
   return normalized === toolCall.name && normalizedArguments === toolCall.arguments
     ? toolCall
     : { ...toolCall, name: normalized, arguments: normalizedArguments };
 }
 
-function normalizeAssistantMessage(message: AssistantMessage, context: Context): AssistantMessage {
+export function normalizeGrokAssistantMessage(
+  message: AssistantMessage,
+  availableTools: readonly string[],
+): AssistantMessage {
   let changed = false;
   const content = message.content.map((part) => {
     if (part.type !== "toolCall") return part;
-    const normalized = normalizeToolCall(part, context);
+    const normalized = normalizeToolCall(part, availableTools);
     if (normalized !== part) changed = true;
     return normalized;
   });
   return changed ? { ...message, content } : message;
 }
 
-function normalizeAssistantEvent(event: AssistantMessageEvent, context: Context): AssistantMessageEvent {
+export function normalizeGrokAssistantEvent(
+  event: AssistantMessageEvent,
+  availableTools: readonly string[],
+): AssistantMessageEvent {
   if (event.type === "toolcall_end") {
     return {
       ...event,
-      toolCall: normalizeToolCall(event.toolCall, context),
-      partial: normalizeAssistantMessage(event.partial, context),
+      toolCall: normalizeToolCall(event.toolCall, availableTools),
+      partial: normalizeGrokAssistantMessage(event.partial, availableTools),
     };
   }
-  if (event.type === "done") return { ...event, message: normalizeAssistantMessage(event.message, context) };
-  if (event.type === "error") return { ...event, error: normalizeAssistantMessage(event.error, context) };
-  if ("partial" in event) return { ...event, partial: normalizeAssistantMessage(event.partial, context) };
+  if (event.type === "done") {
+    return { ...event, message: normalizeGrokAssistantMessage(event.message, availableTools) };
+  }
+  if (event.type === "error") {
+    return { ...event, error: normalizeGrokAssistantMessage(event.error, availableTools) };
+  }
+  if ("partial" in event) {
+    return { ...event, partial: normalizeGrokAssistantMessage(event.partial, availableTools) };
+  }
   return event;
-}
-
-export function streamSimpleGrok(model: Model<"openai-responses">, context: Context, options?: SimpleStreamOptions) {
-  const upstream = streamSimpleOpenAIResponses(model, context, options);
-  const stream = createAssistantMessageEventStream();
-
-  void (async () => {
-    for await (const event of upstream) {
-      stream.push(normalizeAssistantEvent(event, context));
-    }
-  })().catch((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    stream.push({
-      type: "error",
-      reason: "error",
-      error: {
-        role: "assistant",
-        content: [{ type: "text", text: message }],
-        api: model.api,
-        provider: model.provider,
-        model: model.id,
-        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-        stopReason: "error",
-        errorMessage: message,
-        timestamp: Date.now(),
-      },
-    });
-  });
-
-  return stream;
 }
