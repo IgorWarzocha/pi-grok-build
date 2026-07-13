@@ -8,7 +8,7 @@ export type GrokModelConfig = {
   name: string;
   reasoning: boolean;
   thinkingLevelMap?: ThinkingLevelMap;
-  input: ["text"];
+  input: ("text" | "image")[];
   contextWindow: number;
   maxTokens: number;
   description?: string;
@@ -16,7 +16,7 @@ export type GrokModelConfig = {
 };
 
 export const FALLBACK_MODELS: GrokModelConfig[] = [
-  { id: "grok-4.5", name: "Grok 4.5", reasoning: true, thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: null }, input: ["text"], contextWindow: 500_000, maxTokens: 16_384, description: "Current Grok CLI model" },
+  { id: "grok-4.5", name: "Grok 4.5", reasoning: true, thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: null }, input: ["text", "image"], contextWindow: 500_000, maxTokens: 16_384, description: "Current Grok CLI model" },
   { id: "grok-composer-2.5-fast", name: "Composer 2.5", reasoning: false, input: ["text"], contextWindow: 200_000, maxTokens: 16_384, description: "Cursor's latest coding model" },
 ];
 
@@ -65,7 +65,7 @@ export function readGrokModels(): GrokModelConfig[] {
         name: String(info.name || id),
         reasoning: Boolean(thinkingLevelMap),
         ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
-        input: ["text"] as ["text"],
+        input: (id === "grok-4.5" ? ["text", "image"] : ["text"]) as GrokModelConfig["input"],
         contextWindow: Number(info.context_window) || 128_000,
         maxTokens: Number(info.max_completion_tokens) || 16_384,
         description: typeof info.description === "string" ? info.description : undefined,
