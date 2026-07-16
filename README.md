@@ -14,6 +14,10 @@ It reads your Grok CLI token from:
 ~/.grok/auth.json
 ```
 
+Before each Pi request it asks a tiny helper for the current token. If the token
+is inside Grok's five-minute early-refresh window, the helper runs `grok models`
+first so the official CLI refresh path updates `~/.grok/auth.json`.
+
 and sends Pi requests to Grok's CLI chat proxy:
 
 ```txt

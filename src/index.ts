@@ -1,11 +1,21 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { fileURLToPath } from "node:url";
 import { readGrokCliVersion, readGrokModels } from "./models.ts";
-import { login, readGrokApiKeyForStartup, refreshToken } from "./oauth.ts";
+import { login, refreshToken } from "./oauth.ts";
 import { normalizeGrokAssistantEvent, normalizeGrokAssistantMessage } from "./tool-normalization.ts";
 
 const GROK_CLI_VERSION = readGrokCliVersion();
 const BASE_URL = process.env.GROK_CLI_CHAT_PROXY_BASE_URL?.replace(/\/$/, "") || "https://cli-chat-proxy.grok.com/v1";
 const MODELS = readGrokModels();
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function grokTokenCommand(): string {
+  const tokenScript = fileURLToPath(new URL("./token.ts", import.meta.url));
+  return `!${shellQuote(process.execPath)} ${shellQuote(tokenScript)}`;
+}
 
 export default function (pi: ExtensionAPI) {
   let turnTools: string[] = [];
@@ -14,7 +24,7 @@ export default function (pi: ExtensionAPI) {
     name: "Grok CLI (grok login)",
     baseUrl: BASE_URL,
     api: "openai-responses",
-    apiKey: readGrokApiKeyForStartup(),
+    apiKey: grokTokenCommand(),
     authHeader: true,
     headers: {
       "X-XAI-Token-Auth": "xai-grok-cli",

@@ -1,4 +1,5 @@
 import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
+import { spawnSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -13,6 +14,7 @@ const CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
 const SCOPES = "openid profile email offline_access grok-cli:access api:access";
 const REDIRECT_URI = "http://127.0.0.1:56121/callback";
 const GROK_SCOPE = `${ISSUER}::${CLIENT_ID}`;
+const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
 
 export function readGrokAuth(): { access: string; refresh?: string; expires?: number } {
   const authPath = join(homedir(), ".grok", "auth.json");
@@ -25,12 +27,34 @@ export function readGrokAuth(): { access: string; refresh?: string; expires?: nu
   return { access, refresh, expires: Number.isFinite(expiresAt) ? expiresAt : Date.now() + 60 * 60 * 1000 };
 }
 
-export function readGrokApiKeyForStartup(): string | undefined {
-  try {
-    return readGrokAuth().access;
-  } catch {
-    return undefined;
-  }
+function shouldRefreshSoon(expires: number | undefined): boolean {
+  return !expires || Date.now() >= expires - TOKEN_REFRESH_WINDOW_MS;
+}
+
+function runGrokCliRefresh() {
+  const grok = process.env.GROK_CLI_PATH || "grok";
+  const result = spawnSync(grok, ["models"], {
+    env: { ...process.env, NO_COLOR: "1" },
+    stdio: "ignore",
+    timeout: 20_000,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`grok models exited with status ${result.status}`);
+}
+
+export function readFreshGrokAuth(): { access: string; refresh?: string; expires?: number } {
+  const auth = readGrokAuth();
+  if (!shouldRefreshSoon(auth.expires)) return auth;
+
+  // Delegate refresh to the official CLI. Grok's AuthManager uses the same
+  // early-invalidation window plus auth.json.lock/flock guards, so Pi does not
+  // spend refresh tokens in a parallel, incompatible refresh path.
+  runGrokCliRefresh();
+  return readGrokAuth();
+}
+
+export function readFreshGrokApiKey(): string {
+  return readFreshGrokAuth().access;
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -120,7 +144,7 @@ function waitForLoopbackCallback(expectedState: string): Promise<{ url: URL; clo
 
 export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
   try {
-    const existing = readGrokAuth();
+    const existing = readFreshGrokAuth();
     callbacks.onDeviceCode({ userCode: "already logged in", verificationUri: "grok login" });
     return { access: existing.access, refresh: existing.refresh || existing.access, expires: existing.expires };
   } catch {
@@ -179,12 +203,12 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
 export async function refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
   let refreshToken = credentials.refresh;
   try {
-    const existing = readGrokAuth();
-    if ((existing.expires || 0) > Date.now() + 60_000) {
-      return { access: existing.access, refresh: existing.refresh || credentials.refresh, expires: existing.expires };
-    }
-    refreshToken = existing.refresh || refreshToken;
+    const existing = readFreshGrokAuth();
+    return { access: existing.access, refresh: existing.refresh || credentials.refresh, expires: existing.expires };
   } catch {
+    try {
+      refreshToken = readGrokAuth().refresh || refreshToken;
+    } catch {}
     // Fall through to direct OAuth refresh.
   }
 
